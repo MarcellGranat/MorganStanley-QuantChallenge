@@ -1,0 +1,77 @@
+---
+title: Results
+author: Marcell Granat & Balint Mazzag
+format:
+  html:
+    embed-resources: true
+    code-fold: true
+    code-summary: "Show the code"
+toc: true
+theme:
+  light: flatly
+  dark: darkly
+date: last-modified
+editor_options: 
+  chunk_output_type: console
+execute: 
+  echo: true
+  fig-dpi: 400
+  error: true
+  cache: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+source("00-utils.R")
+source("00-board.R")
+```
+
+```{r}
+#| label: import 
+
+.read(daily_weather_df, minnesota_county_location_df, minnesota_production_df, minnesota_station_location_df)
+```
+
+```{r}
+#| label: fig-map
+distance_df |> 
+  left_join(
+    minnesota_county_location_df |> 
+      usmap::usmap_transform(
+        input_names = c("longitude", "latitude"),
+        output_names = c("county_longitude", "county_latitude")
+      ) |> 
+      select(- longitude, - latitude),
+    by = join_by(county)
+  ) |> 
+  left_join(
+    minnesota_station_location_df |> 
+      usmap::usmap_transform(
+        input_names = c("longitude", "latitude"),
+        output_names = c("station_longitude", "station_latitude")
+      ) |> 
+      select(- longitude, - latitude), 
+    by = join_by(station == code)
+  ) |> 
+  mutate(county = ifelse(duplicated(county), NA, county)) |> 
+  ggplot() + 
+  geom_polygon(data = usmap::us_map(regions = "counties") |> 
+                 filter(full == "Minnesota"), 
+               aes(x = x, y =y,  group = group), 
+               color = 'black', 
+               fill = "midnightblue", 
+               alpha = .2) +
+  geom_point(aes(county_longitude, county_latitude, label = county), 
+             fill = "red", shape = 21, color = "black") + 
+  geom_point(aes(station_longitude, station_latitude), color = "blue2", size = .4) +
+  labs(
+    x = NULL, y = NULL
+  ) + 
+  theme(
+    axis.text = element_blank()
+  )
+```
