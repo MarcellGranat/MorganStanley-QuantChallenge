@@ -43,6 +43,7 @@ minnesota_production_df <- read_csv(t) |>
   janitor::clean_names() |> 
   rename_all(str_remove, pattern =  "_.*") |>  # keep only first word from the colnames
   mutate(
+    county = str_to_title(county),
     acres = str_remove(acres, ","),
     acres = as.numeric(acres),
     production = str_remove(production, ","),
