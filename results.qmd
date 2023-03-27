@@ -75,3 +75,36 @@ distance_df |>
     axis.text = element_blank()
   )
 ```
+
+```{r}
+#| label: fig-trend-yield
+
+minnesota_production_df |> 
+  filter(crop == "CORN, GRAIN", county != "OTHER (COMBINED) COUNTIES") |> 
+  ggplot() + 
+  geom_line(aes(year, yield, group = county), show.legend = FALSE, alpha = .3) + 
+  geom_smooth(mapping = aes(year, yield, color = "Fitted line with OLS"), method = "lm") +
+  labs(
+    y = "Yield (Bu / Acr)",
+    x = NULL,
+    color = NULL
+  )
+```
+
+```{r}
+#| label: fig-trend-acres
+
+minnesota_production_df |> 
+  filter(crop == "CORN, GRAIN", county != "OTHER (COMBINED) COUNTIES") |> 
+  group_by(year) |> 
+  summarise(acres = sum(acres, na.rm = TRUE)) |> 
+  ggplot() + 
+  geom_line(aes(year, acres), show.legend = FALSE) +
+  scale_y_continuous(labels = scales::number) +
+  labs(
+    y = "Total of harvested acres in all counties",
+    x = NULL,
+    color = NULL
+  )
+```
+
