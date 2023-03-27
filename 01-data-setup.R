@@ -41,8 +41,17 @@ minnesota_county_location_df <- read_csv(t) |>
 od$download_file("MorganStanley-QuantChallenge/agri/minnesota_county_yearly_agricultural_production.csv", dest = t, overwrite = TRUE)
 minnesota_production_df <- read_csv(t) |> 
   janitor::clean_names() |> 
-  rename_all(str_remove, pattern =  "_.*") # keep only first word from the colnames
+  rename_all(str_remove, pattern =  "_.*") |>  # keep only first word from the colnames
+  mutate(
+    acres = str_remove(acres, ","),
+    acres = as.numeric(acres),
+    production = str_remove(production, ","),
+    production = as.numeric(production),
+    yield = str_remove(yield, ","),
+    yield = as.numeric(yield),
+  )
 
+  
 od$download_file("MorganStanley-QuantChallenge/weather/Minnesota Station location list.csv", dest = t, overwrite = TRUE)
 minnesota_station_location_df <- read_csv(t) |> 
   janitor::clean_names()
