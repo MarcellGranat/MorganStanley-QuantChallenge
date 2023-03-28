@@ -29,7 +29,9 @@ prediction_targets_df <- od$list_files(path = "MorganStanley-QuantChallenge/weat
     rio::import(t) |> 
       mutate(id = str_remove(file_name, ".csv"), .before = 1)
   }, .progress = TRUE) |> 
-  set_names("id", "time", "avg_temp", "min_temp", "max_temp", "daily_prec") # colnames
+  set_names("county", "time", "avg_temp", "min_temp", "max_temp", "daily_prec") |>  # colnames
+  tibble() |> 
+  mutate(time = as.Date(time))
 
 # Standalone files --------------------------------------------
 
