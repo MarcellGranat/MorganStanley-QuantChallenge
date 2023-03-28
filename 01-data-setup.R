@@ -12,7 +12,11 @@ daily_weather_df <- od$list_files(path = "MorganStanley-QuantChallenge/weather/m
     rio::import(t) |> 
       mutate(id = str_remove(file_name, ".csv"), .before = 1)
   }, .progress = TRUE) |> 
-  set_names("id", "time", "avg_temp", "min_temp", "max_temp", "daily_prec") # colnames
+  set_names("station", "time", "avg_temp", "min_temp", "max_temp", "daily_prec") |> # colnames
+  mutate(
+    time = as.Date(time)
+  ) |> 
+  tibble()
 
 # CSV files from prediction_targets_daily subfolder --------------------
 
