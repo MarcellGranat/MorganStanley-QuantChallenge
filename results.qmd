@@ -33,7 +33,7 @@ source("00-board.R")
 ```{r}
 #| label: import 
 
-.read(daily_weather_df, minnesota_county_location_df, minnesota_production_df, minnesota_station_location_df)
+.read(daily_weather_df, minnesota_county_location_df, minnesota_production_df, minnesota_station_location_df, prediction_targets_df)
 ```
 
 ```{r}
@@ -107,4 +107,37 @@ minnesota_production_df |>
     color = NULL
   )
 ```
+
+```{r}
+#| label: fig-missingness
+
+daily_weather_df |> 
+  filter(time > "2010-01-01") |> 
+  mutate(
+    avg_temp = (min_temp + max_temp) / 2
+  ) |> 
+  sample_n(1000) |> 
+  visdat::vis_miss()
+```
+
+```{r}
+prediction_targets_df |> 
+  sample_n(1000) |> 
+  visdat::vis_miss()
+```
+
+```{r}
+#| label: fig-impute-w-avg
+
+daily_weather_df |> 
+  ggplot() + 
+  aes((min_temp + max_temp) / 2, avg_temp) + 
+  geom_point(alpha = .2)
+```
+
+```{r}
+weather_design_df |> 
+  count(year, sort = TRUE)
+```
+
 
