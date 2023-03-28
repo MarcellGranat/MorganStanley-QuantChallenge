@@ -4,14 +4,12 @@ train <- design_df |>
   filter(year < 2010)
 
 rec <- recipe(yield ~ ., data = train) |> 
-  step_rm(county) |> 
-  step_impute_mean(all_predictors()) |> 
   step_zv(all_predictors()) |> 
   step_corr(all_numeric_predictors(), threshold = .5) |> 
+  step_impute_bag(ends_with("_daily_prec")) |> 
+  step_impute_mean(all_numeric_predictors()) |> 
   step_normalize(all_numeric_predictors()) |> 
-  prep()
-
-rec$template
+  step_rm(county)
 
 train_folds <- train |> 
   group_by(year) |> 
