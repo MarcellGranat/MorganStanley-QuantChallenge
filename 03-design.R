@@ -19,21 +19,17 @@ station_to_county <- minnesota_production_df |>
   slice_min(distance, n = 3) |> 
   ungroup()
 
-.write(station_to_county)
-
-daily_weather_mice <- mice::mice(daily_weather_df, method = "mean") |> # TODO rf
+daily_weather_imputed_df <- daily_weather_df |> 
+  mice::mice(method = "rf", seed = 123) |> 
   mice::complete() |> 
-  tibble()
-
-daily_weather_imputed_df <- daily_weather_mice |> 
   mutate(
     avg_temp = daily_weather_df$avg_temp, # avg of min & max is an appropriate estimation
     avg_temp = ifelse(is.na(avg_temp), (min_temp + max_temp) / 2, avg_temp),
   )
 
 design_df <- minnesota_production_df |> 
-  left_join(station_to_county) |> 
-  left_join(daily_weather_imputed_df, multiple = "all") |> 
+  left_join(station_to_county, by = join_by(year, county)) |> 
+  left_join(daily_weather_imputed_df, multiple = "all", by = join_by(station, time)) |> 
   filter(crop == "CORN, GRAIN", county != "OTHER (COMBINED) COUNTIES") |> 
   group_by(county, time) |> 
   summarise(
@@ -47,43 +43,47 @@ design_df <- minnesota_production_df |>
     md = str_c(lubridate::month(time), "-", lubridate::day(time))
   ) |> 
   select(-time) |> 
+  drop_na() |> 
   pivot_wider(names_from = md, values_from = avg_temp:gdd)
-  
-  
-  
 
-weather_design_df <- daily_weather_mice |> 
+# prediction_targets > design ---------------------------------
+
+extended_prediction_targets_df <- prediction_targets_df |> 
+  mutate(county, year = lubridate::year(time)) |> 
+  distinct(county, year) |> 
   mutate(
-    avg_temp = daily_weather_df$avg_temp, # avg of min & max is an appropriate estimation
-    avg_temp = ifelse(is.na(avg_temp), (min_temp + max_temp) / 2, avg_temp),
-    year = lubridate::year(time),
-    md = str_c(lubridate::month(time), "-", lubridate::day(time)) # aggregate
+    time = map(year, ~ seq.Date(from = as.Date(paste0(., "-01-01")), to = as.Date(paste0(., "-12-31")), by = "days"))
   ) |> 
-  pivot_longer(avg_temp:daily_prec) |> 
+  unnest(time) |> 
+  left_join(prediction_targets_df, by = join_by(county, time))
+
+prediction_design_df <- extended_prediction_targets_df |> 
+  mice::mice(method = "rf", seed = 123) |>
+  mice::complete() |> 
+  mutate(
+    avg_temp = extended_prediction_targets_df$avg_temp,
+    avg_temp = ifelse(is.na(avg_temp), (min_temp + max_temp) / 2, avg_temp)
+  ) |> 
+  mutate(
+    year = lubridate::year(time),
+    md = str_c(lubridate::month(time), "-", lubridate::day(time)),
+    .before = 1
+  ) |> 
+  group_by(county, year) |> 
+  mutate(
+    kdd = cumsum(max(avg_temp - 29, 0)),
+    gdd = cumsum(max(avg_temp - 8, 0))
+  ) |> 
+  ungroup() |> 
+  pivot_longer(avg_temp:gdd) |> 
   select(-time) |> 
   unite("name", md, name) |> 
   pivot_wider() |> 
-  rename(station = id)
-
-design_df <- minnesota_production_df |> 
-  left_join(station_to_county_df, by = join_by(county)) |> 
-  left_join(weather_design_df, by = join_by(station, year)) |> 
-  filter(crop == "CORN, GRAIN", county != "OTHER (COMBINED) COUNTIES") |> 
-  select(- commodity, -station, - crop, - production, - acres, - distance)
-
-prediction_design_df <- prediction_targets_df |> 
-  mutate(
-    avg_temp = ifelse(is.na(avg_temp), (min_temp + max_temp) / 2, avg_temp),
-    year = lubridate::year(time),
-    md = str_c(lubridate::month(time), "-", lubridate::day(time)) # aggregate
-  ) |> 
-  pivot_longer(avg_temp:daily_prec) |> 
-  select(-time) |> 
-  unite("name", md, name) |> 
-  pivot_wider() |> 
-  rename(county = id)
+  rename_at(- (1:2), \(x) {
+    str_remove(x, "\\d{1,2}-\\d{1,2}_") |> 
+      str_c("_", str_extract(x, "\\d{1,2}-\\d{1,2}"))
+  })
 
 setdiff(names(design_df), names(prediction_design_df)) # only yield remains
 
-
-.write(station_to_county_df, design_df, prediction_design_df)
+.write(design_df, prediction_design_df)
