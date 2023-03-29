@@ -19,6 +19,11 @@ station_to_county <- minnesota_production_df |>
   slice_min(distance, n = 3) |> 
   ungroup()
 
+.write(station_to_county)
+
+
+# design frame ------------------------------------------------
+
 daily_weather_imputed_df <- daily_weather_df |> 
   mice::mice(method = "rf", seed = 123) |> 
   mice::complete() |> 
@@ -45,6 +50,8 @@ design_df <- minnesota_production_df |>
   select(-time) |> 
   drop_na() |> 
   pivot_wider(names_from = md, values_from = avg_temp:gdd)
+
+.write(design_df)
 
 # prediction_targets > design ---------------------------------
 
@@ -84,6 +91,6 @@ prediction_design_df <- extended_prediction_targets_df |>
       str_c("_", str_extract(x, "\\d{1,2}-\\d{1,2}"))
   })
 
-setdiff(names(design_df), names(prediction_design_df)) # only yield remains
+.write(prediction_design_df)
 
-.write(design_df, prediction_design_df)
+setdiff(names(design_df), names(prediction_design_df)) # only yield remains
