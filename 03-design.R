@@ -49,7 +49,8 @@ design_df <- minnesota_production_df |>
   ) |> 
   select(-time) |> 
   drop_na() |> 
-  pivot_wider(names_from = md, values_from = avg_temp:gdd)
+  pivot_wider(names_from = md, values_from = avg_temp:gdd) |> 
+  select(- ends_with("_2-29"))
 
 .write(design_df)
 
@@ -89,7 +90,8 @@ prediction_design_df <- extended_prediction_targets_df |>
   rename_at(- (1:2), \(x) {
     str_remove(x, "\\d{1,2}-\\d{1,2}_") |> 
       str_c("_", str_extract(x, "\\d{1,2}-\\d{1,2}"))
-  })
+  }) |> 
+  select(- ends_with("_2-29"))
 
 .write(prediction_design_df)
 
