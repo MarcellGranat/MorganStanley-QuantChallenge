@@ -7,10 +7,10 @@ training_set <- design_df |>
 # not preped recipe > avoid look-ahead bias
 
 rec <- recipe(yield ~ ., data = training_set) |> 
+  step_rm(county) |> 
   step_zv(all_predictors()) |> # remove with ZeroVariance
-  step_corr(all_numeric_predictors(), threshold = .8) |> 
-  step_normalize(all_numeric_predictors()) |> 
-  step_rm(county)
+  step_corr(all_numeric_predictors(), threshold = .7) |> 
+  step_normalize(all_numeric_predictors())
 
 
 # Folds -------------------------------------------------------
