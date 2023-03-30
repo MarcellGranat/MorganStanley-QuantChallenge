@@ -24,4 +24,4 @@ rand_forest_randomForest <- list(
 stoc()
 
 dir.create("tuning", showWarnings = FALSE)
-write_rds(linear_reg_glmnet, file = "tuning/rand_forest_randomForest.rds")
+write_rds(rand_forest_randomForest, file = "tuning/rand_forest_randomForest.rds")
