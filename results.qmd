@@ -34,11 +34,39 @@ source("00-board.R")
 #| label: import 
 
 .read(daily_weather_df, minnesota_county_location_df, minnesota_production_df, minnesota_station_location_df, prediction_targets_df)
+
+.read(distance_df)
+.read(station_to_county)
+.read(testing_rs_75, testing_rs_90, testing_rs_95, testing_rs_no_wts)
+.read(ensemble_dropsvm_rs, ensemble_svm_rs)
+
+.read(linear_reg_lm_no_wts_wf, rand_forest_ranger_no_wts_wf,
+      weekly_svm_linear_LiblineaR_wf, weekly_boost_tree_lightgbm_wf, 
+      linear_reg_glmnet_90_wf, mars_earth_no_wts_wf)
+
+.read(ensemble_linear_reg_glmnet_wf, ensemble_linear_reg_lm_wf, ensemble_mars_earth_wf, 
+      ensemble_dropSVM_linear_reg_glmnet_wf, 
+      ensemble_dropSVM_linear_reg_lm_wf, ensemble_dropSVM_mars_earth_wf)
+```
+
+```{r}
+nicename <- function(x) {
+  str_replace_all(x, c(
+    "glmnet" = "LASSO",
+    "lm" = "OLS",
+    "ranger" = "Random forest",
+    "LiblineaR" = "Linear SVM",
+    "earth" = "MARS",
+    "lightgbm" = "LightGBM"
+  ))
+}
 ```
 
 ```{r}
 #| label: fig-map
-distance_df |> 
+
+p1 <- station_to_county |> 
+  filter(time == "1950-01-01") |> 
   left_join(
     minnesota_county_location_df |> 
       usmap::usmap_transform(
@@ -64,17 +92,70 @@ distance_df |>
                aes(x = x, y =y,  group = group), 
                color = 'black', 
                fill = "midnightblue", 
-               alpha = .2) +
+               alpha = .1) +
   geom_point(aes(county_longitude, county_latitude, label = county), 
              fill = "red", shape = 21, color = "black") + 
-  geom_point(aes(station_longitude, station_latitude), color = "blue2", size = .4) +
+  geom_point(aes(station_longitude, station_latitude), color = "green3", size = 4) +
   labs(
-    x = NULL, y = NULL
+    x = NULL, y = NULL, title = "January 1, 1950"
   ) + 
   theme(
     axis.text = element_blank()
   )
+
+p2 <- station_to_county |> 
+  filter(time == "2010-01-01") |> 
+  left_join(
+    minnesota_county_location_df |> 
+      usmap::usmap_transform(
+        input_names = c("longitude", "latitude"),
+        output_names = c("county_longitude", "county_latitude")
+      ) |> 
+      select(- longitude, - latitude),
+    by = join_by(county)
+  ) |> 
+  left_join(
+    minnesota_station_location_df |> 
+      usmap::usmap_transform(
+        input_names = c("longitude", "latitude"),
+        output_names = c("station_longitude", "station_latitude")
+      ) |> 
+      select(- longitude, - latitude), 
+    by = join_by(station == code)
+  ) |> 
+  mutate(county = ifelse(duplicated(county), NA, county)) |> 
+  ggplot() + 
+  geom_polygon(data = usmap::us_map(regions = "counties") |> 
+                 filter(full == "Minnesota"), 
+               aes(x = x, y =y,  group = group), 
+               color = 'black', 
+               fill = "midnightblue", 
+               alpha = .1) +
+  geom_point(aes(county_longitude, county_latitude, label = county), 
+             fill = "red", shape = 21, color = "black") + 
+  geom_point(aes(station_longitude, station_latitude), color = "green3", size = 4) +
+  labs(
+    x = NULL, y = NULL, title = "January 1, 2010"
+  ) + 
+  theme(
+    axis.text = element_blank()
+  )
+
+p1 + 
+  theme_bw()  +
+  theme(
+    axis.text = element_blank(),
+    plot.title = element_text(hjust = .5, face = "bold"),
+    axis.ticks = element_blank()
+  ) + p2 + 
+  theme_bw() +
+  theme(
+    axis.text = element_blank(),
+    plot.title = element_text(hjust = .5, face = "bold"),
+    axis.ticks = element_blank()
+  )
 ```
+
 
 ```{r}
 #| label: fig-trend-yield
@@ -88,6 +169,10 @@ minnesota_production_df |>
     y = "Yield (Bu / Acr)",
     x = NULL,
     color = NULL
+  ) + 
+  theme_minimal() + 
+  theme(
+    legend.position = "bottom"
   )
 ```
 
@@ -136,224 +221,87 @@ daily_weather_df |>
 ```
 
 ```{r}
-weather_design_df |> 
-  count(year, sort = TRUE)
-```
+#| label: fig-svm-grid
+.read(svm_grid)
 
-```{r}
-load("model-setup.RData")
-
-df <- rec |> 
-  prep() |> 
-  pluck("template")
-
-df |> 
-  ungroup() |> 
-  select(- year) |> 
-  slice(1) |> 
-  pivot_longer(everything()) |> 
-  mutate(
-    day = str_extract(name, "\\d{1,2}-\\d{1,2}"),
-    day = str_c("2023-", day),
-    day = lubridate::ymd(day),
-    variable = str_remove(name, "_\\d{1,2}-\\d{1,2}"),
-    selected = TRUE
-  ) |> 
-  filter(variable != "yield") |> 
-  (\(x) {
-    crossing(
-      variable = x$variable,
-      day = seq.Date(from = as.Date("2023-01-01"), to = as.Date("2023-12-31"), by = "days")
-    ) |> 
-      left_join(x)
-  }) () |> 
-  mutate(selected = ifelse(!is.na(selected), selected, FALSE)) |> 
-  ggplot() + 
-  aes(day, variable, fill = selected) + 
-  geom_tile() + 
-  scale_x_date(date_labels = "%b", date_breaks = "month", expand = c(0, 0)) + 
-  scale_fill_manual(values = c("grey", "red3"))
-```
-
-```{r}
-tuning_rs_l <- list.files("tuning", full.names = TRUE) |> 
-  setdiff("tuning/linear_reg_lm.rds") |> 
-  map(read_rds) |> 
-  map(2) |> 
-  map2(c("xgboost", "lasso", "randomforest", "svm"), ~ mutate(.x, model = .y))
-
-tuning_rs_l |> 
-  crossing(
-    metric = c("rsq", "rmse", "msd", "mape")
-  ) |> 
-  mutate(
-    best = map2(tuning_rs_l, metric, ~ show_best(.x, metric = .y, n = 1)),
-    rs = map2(tuning_rs_l, best, \(x, y) {
-      best_l <- y |> 
-        select(- .metric, - mean, - std_err, - .estimator, - n, - .config, - model) |> 
-        imap_chr(~ paste0(.y, " = ", ifelse(is.na(round(as.numeric(.x), 3)), .x, round(as.numeric(.x), 3)))) |> 
-        str_flatten(", ")
-      
-      x |> 
-        select(id, .metrics) |> 
-        unnest(.metrics) |> 
-        inner_join(
-          y |> 
-            select(- any_of(c(".estimator", "n", ".config")))
-        ) |> 
-        select(id, .estimate, mean, std_err) |> 
-        mutate(best_l, model = x$model[1])
-    })
-  ) |> 
-  select(metric, rs) |> 
-  unnest(rs) |> 
-  group_by(metric) |> 
-  mutate(label_y = max(.estimate)) |> 
-  group_by(metric, model) |> 
-  mutate(label_y = c(label_y[1], rep(NA, n() - 1))) |> 
-  ggplot() + 
-  facet_grid(metric ~ model, scales = "free_y") + 
-  geom_line(aes(as.numeric(id), .estimate)) +
-  geom_point(aes(as.numeric(id), .estimate)) + 
-  geom_line(aes(as.numeric(id), mean), lty = 2) + 
-  geom_ribbon(
-    aes(as.numeric(id), ymin = mean - qnorm(.975) * std_err, ymax = mean + qnorm(.975) * std_err),
-    alpha = .3
-  ) + 
-  geom_text(
-    aes(x = 1960, y = label_y * 1.1, label = str_wrap(best_l, 50)),
-    color = "grey10",
-    size = 1.5,
-    hjust = 0,
-    vjust = 1
-  ) +
-  labs(
-    x = "Assessment year"
-  ) + 
-  scale_x_continuous(n.breaks = 4) +
+autoplot(svm_grid) + 
   theme_bw()
 ```
 
-```{r}
-tuning_rs_l <- list.files("past", full.names = TRUE) |> 
-  setdiff("past/linear_reg_lm.rds") |> 
-  map(read_rds) |> 
-  map(2) |> 
-  map2(c("xgboost", "lasso", "randomforest", "svm"), ~ mutate(.x, model = .y))
-
-tuning_rs_l |> 
-  crossing(
-    metric = c("rsq", "rmse", "msd", "mape")
-  ) |> 
-  mutate(
-    best = map2(tuning_rs_l, metric, ~ show_best(.x, metric = .y, n = 1)),
-    rs = map2(tuning_rs_l, best, \(x, y) {
-      best_l <- y |> 
-        select(- .metric, - mean, - std_err, - .estimator, - n, - .config, - model) |> 
-        imap_chr(~ paste0(.y, " = ", ifelse(is.na(round(as.numeric(.x), 3)), .x, round(as.numeric(.x), 3)))) |> 
-        str_flatten(", ")
-      
-      x |> 
-        select(id, .metrics) |> 
-        unnest(.metrics) |> 
-        inner_join(
-          y |> 
-            select(- any_of(c(".estimator", "n", ".config")))
-        ) |> 
-        select(id, .estimate, mean, std_err) |> 
-        mutate(best_l, model = x$model[1])
-    })
-  ) |> 
-  select(metric, rs) |> 
-  unnest(rs) |> 
-  group_by(metric) |> 
-  mutate(label_y = max(.estimate)) |> 
-  group_by(metric, model) |> 
-  mutate(label_y = c(label_y[1], rep(NA, n() - 1))) |> 
-  ggplot() + 
-  facet_grid(metric ~ model, scales = "free_y") + 
-  geom_line(aes(as.numeric(id), .estimate)) +
-  geom_point(aes(as.numeric(id), .estimate)) + 
-  geom_line(aes(as.numeric(id), mean), lty = 2) + 
-  geom_ribbon(
-    aes(as.numeric(id), ymin = mean - qnorm(.975) * std_err, ymax = mean + qnorm(.975) * std_err),
-    alpha = .3
-  ) + 
-  geom_text(
-    aes(x = 1960, y = label_y * 1.1, label = str_wrap(best_l, 50)),
-    color = "grey10",
-    size = 1.5,
-    hjust = 0,
-    vjust = 1
-  ) +
-  labs(
-    x = "Assessment year"
-  ) + 
-  scale_x_continuous(n.breaks = 4) +
-  theme_bw()
-```
 
 ```{r}
-daily_weather_df |> 
-  mutate(
-    year = lubridate::year(time)
-  ) |> 
-  group_by(year) |> 
-  summarise_at(3:6, ~ mean(., na.rm = TRUE)) |> 
-  filter(year > 2005) |> 
-  pivot_longer(- 1) |> 
-  ggplot() + 
-  facet_wrap(~ name) +
-  geom_line(aes(year, value))
-```
+#| label: tbl-base-learner-rs
 
-```{r}
-s_wf |> 
-  add_model(
-    linear_reg() %>%
-      set_engine('lm')
-  ) |> 
-  fit(
-    create_testing_rset(p_data = FALSE, case_wts = FALSE) |> 
-    filter(id == 2016) |> 
-    pull(splits) |> 
-    first() |> 
-    analysis()
-  ) |> 
-  broom::tidy()
-```
-
-```{r}
-.read(weighted_rs, unweighted_rs, ensemble_rs)
-```
-
-```{r}
-bind_rows(
-  weighted_rs,
-  unweighted_rs,
-  ensemble_rs
-) |> 
+bind_rows(testing_rs_75, testing_rs_90, testing_rs_95, testing_rs_no_wts) |> 
+  group_by(gamma, engine) |> 
   filter(.metric == "rmse") |> 
-  mutate(ensemble = str_detect(model, "ensemble")) |> 
-  ggplot() + 
-  aes(as.numeric(id), .estimate, color = model) + 
-  facet_wrap(~ ensemble) +
-  geom_line() + 
-  geom_point()
-```
-
-```{r}
-bind_rows(
-  weighted_rs,
-  unweighted_rs,
-  ensemble_rs
-) |> 
-  filter(.metric == "rmse") |> 
-  group_by(model) |> 
   summarise(
-    rmse = mean(.estimate),
-    std_err = sd(.estimate)
+    m = mean(.estimate),
+    s = format(sd(.estimate), digits = 3)
   ) |> 
-  arrange(rmse)
+  transmute(
+    Engine = nicename(engine),
+    value = str_c(
+      format(m, digits = 4), " (", s, ")"
+    )
+  ) |> 
+  pivot_wider(names_from = gamma, values_fill = "-", names_prefix = "gamma = ") |> 
+  rename_all(str_replace, "gamma = ", "$\\\\gamma$=") |> 
+  knitr::kable(align = c("l", rep("c", 6)), escape = FALSE)
 ```
+
+```{r}
+#| label: tbl-ensemble-rs
+
+bind_rows(ensemble_svm_rs, ensemble_dropsvm_rs) |> 
+  group_by(svm, engine) |> 
+  filter(.metric == "rmse") |> 
+    summarise(
+    m = mean(.estimate),
+    s = format(sd(.estimate), digits = 3)
+  ) |> 
+  ungroup() |> 
+  transmute(
+    Engine = nicename(engine),
+    svm = ifelse(svm, "Include", "Exclude"), 
+    value = str_c(
+      format(m, digits = 4), " (", s, ")"
+    )
+  ) |> 
+  pivot_wider(names_from = svm, values_fill = "-",) |> 
+  knitr::kable(align = c("l", rep("c", 6)))
+```
+
+```{r}
+#| label: fig-rs-ts
+
+bind_rows(
+testing_rs_75 |> 
+  filter(engine == "glmnet") |> 
+  transmute(id, model = str_c(nicename(engine), " (base learner, gamma=0.75)"), .metric, .estimate),
+testing_rs_no_wts |> 
+  filter(engine != "glmnet", engine != "lm") |> 
+  transmute(id, model = str_c(nicename(engine), " (base learner)"), .metric, .estimate),
+ensemble_svm_rs |> 
+  filter(engine == "glmnet") |> 
+  transmute(id, model = str_c(nicename(engine), " (ensemble, include)"), .metric, .estimate)
+) |> 
+  filter(.metric == "rmse") |> 
+  ggplot(aes(as.numeric(id), .estimate, color = model)) + 
+  geom_line() + 
+  geom_point() + 
+  theme_minimal() + 
+  theme(
+    legend.position = c(.6, .6),
+    legend.background = element_rect(fill = "white", color = "black")
+  ) + 
+  labs(
+    x = "Assessment year",
+    y = "RMSE",
+    color = NULL
+  )
+  
+
+```
+
 
