@@ -16,6 +16,7 @@ daily_weather_df <- od$list_files(path = "MorganStanley-QuantChallenge/weather/m
   mutate(
     time = as.Date(time)
   ) |> 
+  arrange(time, station) |> 
   tibble()
 
 # CSV files from prediction_targets_daily subfolder --------------------
@@ -31,10 +32,12 @@ prediction_targets_df <- od$list_files(path = "MorganStanley-QuantChallenge/weat
   }, .progress = TRUE) |> 
   set_names("county", "time", "avg_temp", "min_temp", "max_temp", "daily_prec") |>  # colnames
   tibble() |> 
-  mutate(time = as.Date(time))
+  mutate(time = as.Date(time)) |> 
+  arrange(time, county)
 
 # Standalone files --------------------------------------------
 
+t <- tempfile()
 od$download_file("MorganStanley-QuantChallenge/agri/minnesota_county_location.csv", dest = t, overwrite = TRUE)
 minnesota_county_location_df <- read_csv(t) |> 
   select(- capital_name) |> # redundant information
@@ -55,8 +58,11 @@ minnesota_production_df <- read_csv(t) |>
     production = str_remove(production, ","),
     production = as.numeric(production),
     yield = str_remove(yield, ","),
-    yield = as.numeric(yield),
-  )
+    yield = ifelse(is.na(yield), production / acres, yield),
+    yield = as.numeric(yield)
+  ) |> 
+  drop_na(yield) |> 
+  arrange(year, county)
 
   
 od$download_file("MorganStanley-QuantChallenge/weather/Minnesota Station location list.csv", dest = t, overwrite = TRUE)

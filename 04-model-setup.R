@@ -19,6 +19,7 @@ rec <- recipe(yield ~ ., data = training_set) |>
 training_folds <- training_set |> 
   group_by(year) |> 
   nest() |> 
+  arrange(year) |> 
   ungroup() |> 
   mutate(
     data = map2(data, year, ~ mutate(.x, year = .y, .before = 1)),

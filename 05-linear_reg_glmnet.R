@@ -5,14 +5,14 @@ linear_reg_glmnet_spec <- linear_reg(penalty = tune(), mixture = 1) %>%
 
 
 library(doParallel)
-registerDoParallel(makePSOCKcluster(min(parallel::detectCores(logical = FALSE), 6)))
+registerDoParallel(makePSOCKcluster(min(parallel::detectCores(logical = FALSE), 9)))
 
 tictoc::tic("linear_reg_glmnet")
 
 linear_reg_glmnet_rs <- workflow(rec, linear_reg_glmnet_spec) |> 
   tune_grid(
     resamples = training_folds,
-    grid = 5e3,
+    grid = 4500,
     metrics = metric_set(rsq, rmse, msd, mape)
   )
 

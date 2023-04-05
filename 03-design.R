@@ -17,7 +17,8 @@ station_to_county <- minnesota_production_df |>
   ) |> 
   group_by(county, time) |> 
   slice_min(distance, n = 3) |> 
-  ungroup()
+  ungroup() |> 
+  arrange(time, county)
 
 .write(station_to_county)
 
@@ -25,7 +26,7 @@ station_to_county <- minnesota_production_df |>
 # design frame ------------------------------------------------
 
 daily_weather_imputed_df <- daily_weather_df |> 
-  mice::mice(method = "rf", seed = 123) |> 
+  mice::mice(method = "rf", seed = 123) |> # missing data, specially `daily_prec` (there are known zeros in the data)
   mice::complete() |> 
   mutate(
     avg_temp = daily_weather_df$avg_temp, # avg of min & max is an appropriate estimation
@@ -36,6 +37,7 @@ design_df <- minnesota_production_df |>
   left_join(station_to_county, by = join_by(year, county)) |> 
   left_join(daily_weather_imputed_df, multiple = "all", by = join_by(station, time)) |> 
   filter(crop == "CORN, GRAIN", county != "OTHER (COMBINED) COUNTIES") |> 
+  arrange(time, county) |> 
   group_by(county, time) |> 
   summarise(
     across(c(year, yield), first),
@@ -50,7 +52,8 @@ design_df <- minnesota_production_df |>
   select(-time) |> 
   drop_na() |> 
   pivot_wider(names_from = md, values_from = avg_temp:gdd) |> 
-  select(- ends_with("_2-29"))
+  select(- ends_with("_2-29")) |> 
+  arrange(year, county)
 
 .write(design_df)
 
@@ -91,7 +94,8 @@ prediction_design_df <- extended_prediction_targets_df |>
     str_remove(x, "\\d{1,2}-\\d{1,2}_") |> 
       str_c("_", str_extract(x, "\\d{1,2}-\\d{1,2}"))
   }) |> 
-  select(- ends_with("_2-29"))
+  select(- ends_with("_2-29")) |> 
+  arrange(year, county)
 
 .write(prediction_design_df)
 

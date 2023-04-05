@@ -29,46 +29,47 @@ ensemble_folds <- tibble(
   assessment = training_folds |> 
     pull(splits) |> 
     map(assessment),
-  id = training_folds |> 
-    pull(id)
+  year = training_folds |> 
+    pull(id) |> 
+    as.numeric()
 ) |> 
   crossing(
     wf = wfs
   ) |> 
   mutate(
-    analysis_pred = map2(analysis, wf, .progress = TRUE, ~ {
-      predict(fit(.y, .x), .x) |> # build the model on the training data
-        set_names(.y$fit$actions$model$spec$engine) # predict the training data
-    }),
-    assessment_pred = pmap(list(analysis, assessment, wf), .progress = TRUE, ~ {
+    baselearner_pred = pmap(list(analysis, assessment, wf), .progress = TRUE, ~ {
       predict(fit(..3, ..1), ..2) |> # build the model on the training data
         set_names(..3$fit$actions$model$spec$engine) # predict the testing data!
     })
   ) |> 
-  group_by(id) |> 
+  group_by(year) |> 
   reframe(
-    analysis = bind_cols(analysis_pred) |> # colnames refer to the model which made the prediction
-      mutate(
-        county = analysis[[1]]$county,
-        yield = analysis[[1]]$yield
-        ) |> 
-      list(),
-    assessment = bind_cols(assessment_pred) |> 
+    data = bind_cols(baselearner_pred) |> 
       mutate(
         county = assessment[[1]]$county,
         yield = assessment[[1]]$yield
         ) |> 
       list()
   ) |> 
-  mutate(splits = map2(analysis,  assessment, ~ make_splits(x = .x, assessment = .y))) %$%
-  manual_rset(splits, as.character(id))
+  ungroup() |> 
+  mutate(
+    analysis = map(year, \(x) {
+      cur_data_all() |> 
+        filter(year < x, year >= (x - 8)) |> # previous 8 years
+        pull(data) |> 
+        bind_rows()
+    })
+  ) |> 
+  tail(- 8) |>  # analysis set is not complete in the first 8 years
+  mutate(splits = map2(analysis,  data, ~ make_splits(x = .x, assessment = .y))) %$%
+  manual_rset(splits, as.character(year))
 
 # Recipe ------------------------------------------------------
 # not preped recipe > avoid look-ahead bias
-# no need for cor filter and zv_remove again!
 
 ensemble_rec <- recipe(yield ~ ., data = analysis(ensemble_folds$splits[[1]])) |> 
   step_rm(county) |> 
+  step_zv() |> 
   step_normalize(all_numeric_predictors())
 
 save(ensemble_rec, ensemble_folds, file = "ensemble-setup.RData")

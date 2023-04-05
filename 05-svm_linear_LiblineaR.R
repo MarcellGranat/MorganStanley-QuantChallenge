@@ -5,14 +5,14 @@ svm_linear_LiblineaR_spec <- svm_linear(cost = tune(), margin = tune()) |>
   set_mode('regression')
 
 library(doParallel)
-registerDoParallel(makePSOCKcluster(min(parallel::detectCores(logical = FALSE), 6)))
+registerDoParallel(makePSOCKcluster(min(parallel::detectCores(logical = FALSE), 9)))
 
 tictoc::tic("svm_linear_LiblineaR")
 
 svm_linear_LiblineaR_rs <- workflow(rec, svm_linear_LiblineaR_spec) |> 
   tune_grid(
     resamples = training_folds,
-    grid = 1000,
+    grid = 900,
     metrics = metric_set(rsq, rmse, msd, mape)
   )
 

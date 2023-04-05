@@ -1,4 +1,4 @@
-load("model-setup.RData")
+load("weighted-setup.RData")
 
 boost_tree_xgboost_spec <- boost_tree(tree_depth = tune(), trees = tune(), learn_rate = tune(), min_n = tune(), loss_reduction = tune(), sample_size = tune(), stop_iter = tune()) %>%
   set_engine('xgboost') %>%
@@ -7,21 +7,17 @@ boost_tree_xgboost_spec <- boost_tree(tree_depth = tune(), trees = tune(), learn
 library(doParallel)
 registerDoParallel(makePSOCKcluster(min(parallel::detectCores(logical = FALSE), 9)))
 
-tictoc::tic("boost_tree_xgboost")
+tictoc::tic("w_boost_tree_xgboost")
 
-boost_tree_xgboost_rs <- workflow(rec, boost_tree_xgboost_spec) |> 
+w_boost_tree_xgboost_rs <- weighted_wf |> 
+  add_model(boost_tree_xgboost_spec)  |> 
   tune_grid(
-    resamples = training_folds,
+    resamples = weighted_training_folds_l[["0.75"]],
     grid = 900,
     metrics = metric_set(rsq, rmse, msd, mape)
   )
 
-boost_tree_xgboost <- list(
-  spec = boost_tree_xgboost_spec,
-  tuning_rs = boost_tree_xgboost_rs
-)
-
 stoc()
 
-dir.create("tuning", showWarnings = FALSE)
-write_rds(boost_tree_xgboost, file = "tuning/boost_tree_xgboost.rds")
+dir.create("weighted", showWarnings = FALSE)
+write_rds(w_boost_tree_xgboost_rs, file = "weighted/boost_tree_xgboost.rds")

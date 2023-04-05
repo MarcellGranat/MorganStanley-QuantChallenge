@@ -141,6 +141,8 @@ weather_design_df |>
 ```
 
 ```{r}
+load("model-setup.RData")
+
 df <- rec |> 
   prep() |> 
   pluck("template")
@@ -230,5 +232,128 @@ tuning_rs_l |>
   ) + 
   scale_x_continuous(n.breaks = 4) +
   theme_bw()
+```
+
+```{r}
+tuning_rs_l <- list.files("past", full.names = TRUE) |> 
+  setdiff("past/linear_reg_lm.rds") |> 
+  map(read_rds) |> 
+  map(2) |> 
+  map2(c("xgboost", "lasso", "randomforest", "svm"), ~ mutate(.x, model = .y))
+
+tuning_rs_l |> 
+  crossing(
+    metric = c("rsq", "rmse", "msd", "mape")
+  ) |> 
+  mutate(
+    best = map2(tuning_rs_l, metric, ~ show_best(.x, metric = .y, n = 1)),
+    rs = map2(tuning_rs_l, best, \(x, y) {
+      best_l <- y |> 
+        select(- .metric, - mean, - std_err, - .estimator, - n, - .config, - model) |> 
+        imap_chr(~ paste0(.y, " = ", ifelse(is.na(round(as.numeric(.x), 3)), .x, round(as.numeric(.x), 3)))) |> 
+        str_flatten(", ")
+      
+      x |> 
+        select(id, .metrics) |> 
+        unnest(.metrics) |> 
+        inner_join(
+          y |> 
+            select(- any_of(c(".estimator", "n", ".config")))
+        ) |> 
+        select(id, .estimate, mean, std_err) |> 
+        mutate(best_l, model = x$model[1])
+    })
+  ) |> 
+  select(metric, rs) |> 
+  unnest(rs) |> 
+  group_by(metric) |> 
+  mutate(label_y = max(.estimate)) |> 
+  group_by(metric, model) |> 
+  mutate(label_y = c(label_y[1], rep(NA, n() - 1))) |> 
+  ggplot() + 
+  facet_grid(metric ~ model, scales = "free_y") + 
+  geom_line(aes(as.numeric(id), .estimate)) +
+  geom_point(aes(as.numeric(id), .estimate)) + 
+  geom_line(aes(as.numeric(id), mean), lty = 2) + 
+  geom_ribbon(
+    aes(as.numeric(id), ymin = mean - qnorm(.975) * std_err, ymax = mean + qnorm(.975) * std_err),
+    alpha = .3
+  ) + 
+  geom_text(
+    aes(x = 1960, y = label_y * 1.1, label = str_wrap(best_l, 50)),
+    color = "grey10",
+    size = 1.5,
+    hjust = 0,
+    vjust = 1
+  ) +
+  labs(
+    x = "Assessment year"
+  ) + 
+  scale_x_continuous(n.breaks = 4) +
+  theme_bw()
+```
+
+```{r}
+daily_weather_df |> 
+  mutate(
+    year = lubridate::year(time)
+  ) |> 
+  group_by(year) |> 
+  summarise_at(3:6, ~ mean(., na.rm = TRUE)) |> 
+  filter(year > 2005) |> 
+  pivot_longer(- 1) |> 
+  ggplot() + 
+  facet_wrap(~ name) +
+  geom_line(aes(year, value))
+```
+
+```{r}
+s_wf |> 
+  add_model(
+    linear_reg() %>%
+      set_engine('lm')
+  ) |> 
+  fit(
+    create_testing_rset(p_data = FALSE, case_wts = FALSE) |> 
+    filter(id == 2016) |> 
+    pull(splits) |> 
+    first() |> 
+    analysis()
+  ) |> 
+  broom::tidy()
+```
+
+```{r}
+.read(weighted_rs, unweighted_rs, ensemble_rs)
+```
+
+```{r}
+bind_rows(
+  weighted_rs,
+  unweighted_rs,
+  ensemble_rs
+) |> 
+  filter(.metric == "rmse") |> 
+  mutate(ensemble = str_detect(model, "ensemble")) |> 
+  ggplot() + 
+  aes(as.numeric(id), .estimate, color = model) + 
+  facet_wrap(~ ensemble) +
+  geom_line() + 
+  geom_point()
+```
+
+```{r}
+bind_rows(
+  weighted_rs,
+  unweighted_rs,
+  ensemble_rs
+) |> 
+  filter(.metric == "rmse") |> 
+  group_by(model) |> 
+  summarise(
+    rmse = mean(.estimate),
+    std_err = sd(.estimate)
+  ) |> 
+  arrange(rmse)
 ```
 
