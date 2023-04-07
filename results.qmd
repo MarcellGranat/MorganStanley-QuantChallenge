@@ -47,6 +47,9 @@ source("00-board.R")
 .read(ensemble_linear_reg_glmnet_wf, ensemble_linear_reg_lm_wf, ensemble_mars_earth_wf, 
       ensemble_dropSVM_linear_reg_glmnet_wf, 
       ensemble_dropSVM_linear_reg_lm_wf, ensemble_dropSVM_mars_earth_wf)
+
+.read(oats_boost_tree_lightgbm_wf)
+.read(soybeans_boost_tree_lightgbm_wf)
 ```
 
 ```{r}
@@ -300,8 +303,29 @@ ensemble_svm_rs |>
     y = "RMSE",
     color = NULL
   )
-  
+```
 
+```{r}
+#| label: oats&soybeans
+#| eval: false
+
+.read(oats_boost_tree_lightgbm_wf)
+.read(oats_testing)
+
+fit_resamples(
+  oats_boost_tree_lightgbm_wf,
+  oats_testing
+) |> 
+  collect_metrics()
+
+.read(soybeans_boost_tree_lightgbm_wf)
+.read(soybeans_testing)
+
+fit_resamples(
+  soybeans_boost_tree_lightgbm_wf,
+  soybeans_testing
+) |> 
+  collect_metrics()
 ```
 
 
