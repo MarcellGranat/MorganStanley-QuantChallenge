@@ -31,50 +31,33 @@ We applied Tidymodels to evaluate the efficiency of many models. This script cre
     ├── 05-linear_reg_lm.R
     ├── 05-rand_forest_randomForest.R
     ├── 05-svm_linear_LiblineaR.R
-
-These codes set up and train models for a regression task, utilizing parallel processing to speed up the training process, and save the results to locally. 
-
-    ├── 06-ensemble-setup.R
-
-...
-
-    ├── 07-ensemble.R
-
-...
-
-    ├── 07.R
-
-...
-
-    ├── 08-weighted-setup.R
-
-...
-
-    ├── 09-weighted-boost_tree_xgboost.R
-    ├── 09-weighted-linear_reg_glmnet.R
-    ├── 09-weighted-linear_reg_lm.R
-    ├── 09-weighted-rand_forest_ranger.R
+    ├── ...
     
-...
-    
-    ├── 10-weighted-ensemble-setup.R
-    
-...
-    
-    ├── 12-past-setup.R
-    
-...
-    
-    ├── 13-past-boost_tree_xgboost.R
-    ├── 13-past-linear_reg_glmnet.R
-    ├── 13-past-linear_reg_lm.R
-    ├── 13-past-rand_forest_randomForest.R
-    ├── 13-past-svm_linear_LiblineaR.R
-    
-...
-    
-    ├── 14-weighted-past-setup.R
-    ├── 15-weighted-past-boost_tree_xgboost.R
-    ├── 15-weighted-past-linear_reg_glmnet.R
-    ├── 15-weighted-past-linear_reg_lm.R
-    ├── 15-weighted-past-rand_forest_ranger.R
+
+These codes set up and train base learner models for a regression task, utilizing parallel processing to speed up the training process, and save the resulted final workflow. 
+
+
+    ├── 06-ensemble-tuning.R
+
+We make prediction with base learners on the training set, that we will use for stacking.
+
+    ├── 07-testing_no_wts.R
+    ├── 07-testing_rs75.R
+    ├── 07-testing_rs90.R
+    ├── 07-testing_rs95.R
+    ├── 07-testing-ensemble.R
+    ├── 07-oats&soybeans-testing.R
+
+We evaluate all the base learners and ensembles on the testing set.
+
+    ├── 08-prediction_targets_impute.R
+
+MICE imputation on the dataset that we predict with models.
+
+    ├── 09-prediction-setup.R
+
+Data manipulation steps for predictions.
+
+    ├── 10-prediction.R
+
+Prediction.
